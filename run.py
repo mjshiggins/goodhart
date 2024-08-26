@@ -20,7 +20,16 @@ letters = {
     'T': ["#####", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  "],
 }
 
+def get_remote_url():
+    try:
+        return subprocess.check_output(['git', 'remote', 'get-url', 'origin']).decode().strip()
+    except subprocess.CalledProcessError:
+        return None
+
 def clean_git_history():
+    # Store the remote URL before cleaning
+    remote_url = get_remote_url()
+
     if os.path.exists('.git'):
         # Rename the .git folder as a backup
         shutil.move('.git', '.git_old')
@@ -34,9 +43,15 @@ def clean_git_history():
     # Commit the files
     run(['git', 'commit', '-m', '"Initial commit"'])
     
+    # Restore the remote URL if it existed
+    if remote_url:
+        run(['git', 'remote', 'add', 'origin', remote_url])
+    
     # Remove the old .git folder
     if os.path.exists('.git_old'):
         shutil.rmtree('.git_old')
+
+    return remote_url
 
 def main(def_args=sys.argv[1:]):
     args = arguments(def_args)
@@ -45,9 +60,13 @@ def main(def_args=sys.argv[1:]):
     user_name = args.user_name
     user_email = args.user_email
     
-    # Clean git history
-    clean_git_history()
+    # Clean git history and get the remote URL
+    remote_url = clean_git_history()
     
+    # Use the stored remote URL if no repository is provided in args
+    if repository is None:
+        repository = remote_url
+
     # Configure user name and email if provided
     if user_name is not None:
         run(['git', 'config', 'user.name', user_name])
@@ -76,7 +95,7 @@ def main(def_args=sys.argv[1:]):
         contribute(commit_date)
 
     if repository is not None:
-        run(['git', 'remote', 'add', 'origin', repository])
+        run(['git', 'remote', 'set-url', 'origin', repository] if remote_url else ['git', 'remote', 'add', 'origin', repository])
         run(['git', 'branch', '-M', 'main'])
         run(['git', 'push', '-u', 'origin', 'main'])
 
